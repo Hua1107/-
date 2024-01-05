@@ -1,0 +1,241 @@
+import pyodbc
+
+conn = pyodbc.connect("Driver={ODBC Driver 17 for SQL Server};"
+                      "Server=localhost\SQLSERVER2019;"
+                      "Database=aaa;"
+                      "Trusted_Connection=yes;")
+
+def vending_machine_menu():
+    print("=== 販賣機管理系統 ===")
+    print("1. 新增商品")
+    print("2. 修改商品")
+    print("3. 刪除商品")
+    print("4. 查詢所有商品")
+    print("5. 顯示員工表")
+    print("6. 顯示交易紀錄")
+    print("7. 購買商品")
+    print("8. 退出")
+    choice = input("請選擇功能：")
+    
+    if choice == '1':
+        insert_product_menu()
+    elif choice == '2':
+        update_product_menu()
+    elif choice == '3':
+        delete_product_menu()
+    elif choice == '4':
+        show_all_products()
+    elif choice == '5':
+        show_employee_table()
+    elif choice == '6':
+        show_Transactions_table()
+    elif choice == '7':
+        purchase_product_menu()
+    elif choice == '8':
+        print("感謝使用，再見！")
+        quit()
+    else:
+        print("請輸入有效的選項。")
+
+def insert_product(conn, product):
+    cursor = conn.cursor()
+
+    # 檢查是否提供了 ProductID，如果提供，將其包含在插入語句中
+    if product[0] is not None:
+        cursor.execute("INSERT INTO Products (ProductID, ProductName, Price, StockQuantity) VALUES (?, ?, ?, ?)",
+                       product[0], product[1], product[2], product[3])
+    else:
+        cursor.execute("INSERT INTO Products (ProductName, Price, StockQuantity) VALUES (?, ?, ?)",
+                       product[1], product[2], product[3])
+
+    conn.commit()
+    cursor.close()
+
+
+# 交易紀錄
+def show_all_Transactions(conn):
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM Transactions")
+    Transactions = cursor.fetchall()
+    cursor.close()
+    return Transactions
+
+def show_Transactions_table():
+    Transactions_data = show_all_Transactions(conn)
+    print("=== 交易紀錄 ===")
+    for Transactions in Transactions_data:
+        print(f"TransactionID: {Transactions[0]}, ProductID: {Transactions[1]}, Quantity: {Transactions[2]}")
+
+# 員工表
+def show_all_Employee(conn):
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM Employee")
+    Employee = cursor.fetchall()
+    cursor.close()
+    return Employee
+
+def show_employee_table():
+    employees_data = show_all_Employee(conn)
+    print("=== 員工表 ===")
+    for employee in employees_data:
+        print(f"EmployeeID: {employee[0]}, EmployeeName: {employee[1]}, Department: {employee[2]}")
+
+# 新增商品子選單
+def insert_product_menu():
+    print("=== 新增商品 ===")
+    product_id = int(input("請輸入商品ID："))
+    name = input("請輸入商品名稱：")
+    
+    # 確保商品名稱不是空字符串
+    while not name.strip():
+        print("商品名稱不能為空，請重新輸入。")
+        name = input("請輸入商品名稱：")
+
+    price = float(input("請輸入商品價格："))
+    stock = int(input("請輸入商品庫存數量："))
+    
+    # 請確保這裡的元組包含 ProductID
+    insert_product(conn, (product_id, name, price, stock))
+    print("商品新增成功！")
+    
+    vending_machine_menu()
+
+# 修改商品子選單
+def update_product(conn, product):
+    cursor = conn.cursor()
+
+    # 使用 COALESCE 函數，如果 product[1]（ProductName）是 None，則使用空字符串作為預設值
+    cursor.execute("UPDATE Products SET ProductName=?, Price=?, StockQuantity=? WHERE ProductID=?", product[0], product[1], product[2], product[3])
+
+    conn.commit()
+    cursor.close()
+
+# 修改商品子選單
+def update_product_menu():
+    print("=== 修改商品 ===")
+    product_id = int(input("請輸入要修改的商品ID："))
+    name = input("請輸入新的商品名稱：")
+    price = float(input("請輸入新的商品價格："))
+    stock = int(input("請輸入新的商品庫存數量："))
+    
+    update_product(conn, (name, price, stock, product_id))
+    print("商品修改成功！")
+    
+    vending_machine_menu()
+
+# 刪除商品子選單
+def delete_product_menu():
+    print("=== 刪除商品 ===")
+    product_id = int(input("請輸入要刪除的商品ID："))
+
+    # 修正：傳遞 conn 參數
+    delete_product(conn, product_id)
+    print("商品刪除成功！")
+
+    vending_machine_menu() 
+# 查詢所有商品
+def delete_product(conn, product_id):
+    cursor = conn.cursor()
+
+    # 檢查是否有相關的交易記錄
+    cursor.execute("SELECT COUNT(*) FROM Transactions WHERE ProductID=?", product_id)
+    count = cursor.fetchone()[0]
+
+    if count > 0:
+        # 刪除相關的交易記錄
+        cursor.execute("DELETE FROM Transactions WHERE ProductID=?", product_id)
+
+    # 刪除商品
+    cursor.execute("DELETE FROM Products WHERE ProductID=?", product_id)
+    print("商品刪除成功！")
+
+    conn.commit()
+    cursor.close()
+    
+def show_all_products():
+    print("=== 所有商品 ===")
+    products = query_products()
+    for product in products:
+        # 將 Decimal 轉換為浮點數，並設置小數位數為2
+        product_info = (product[0], product[1], float(product[2]), product[3])
+        # 使用格式化字符串進行輸出，控制小數位數為2
+        print(f"{product_info[0]}: {product_info[1]}, Price: ${product_info[2]:.0f}, Stock: {product_info[3]}")
+
+def query_products():
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM Products")
+    products = cursor.fetchall()
+    cursor.close()
+    return products
+
+# 新增商品子選單
+def insert_product_menu():
+    print("=== 新增商品 ===")
+    product_id = int(input("請輸入商品ID："))
+    name = input("請輸入商品名稱：")
+    
+    while not name.strip():
+        print("商品名稱不能為空，請重新輸入。")
+        name = input("請輸入商品名稱：")
+
+    price = float(input("請輸入商品價格："))
+    stock = int(input("請輸入商品庫存數量："))
+    
+    insert_product(conn, (product_id, name, price, stock))
+    print("商品新增成功！")
+    
+    vending_machine_menu()
+
+# 購買商品子選單
+def purchase_product_menu():
+    print("=== 購買商品 ===")
+    show_all_products()
+
+    product_id = int(input("請輸入要購買的商品ID："))
+    quantity = int(input("請輸入購買數量："))
+
+    product = query_product_by_id(product_id)
+    if product:
+        if product.StockQuantity >= quantity:
+            total_amount = product.Price * quantity
+            print(f"總金額：{total_amount}")
+            
+            confirm = input("確認購買嗎？(Y/N): ")
+            if confirm.upper() == 'Y':
+                update_product_stock(product_id, product.StockQuantity - quantity)
+                insert_transaction(product_id, quantity, total_amount)
+                print("購買成功！")
+            else:
+                print("取消購買。")
+        else:
+            print("庫存不足，購買失敗。")
+    else:
+        print("找不到該商品。")
+
+    vending_machine_menu()
+
+# 購買後更新商品庫存
+def update_product_stock(product_id, new_stock):
+    cursor = conn.cursor()
+    cursor.execute("UPDATE Products SET StockQuantity=? WHERE ProductID=?", new_stock, product_id)
+    conn.commit()
+    cursor.close()
+
+# 新增交易紀錄
+def insert_transaction(product_id, quantity, total_amount):
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO Transactions (ProductID, Quantity, TotalAmount) VALUES (?, ?, ?)", product_id, quantity, total_amount)
+    conn.commit()
+    cursor.close()
+
+# 查詢商品
+def query_product_by_id(product_id):
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM Products WHERE ProductID=?", product_id)
+    product = cursor.fetchone()
+    cursor.close()
+    return product
+
+
+while True:
+    vending_machine_menu()
